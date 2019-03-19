@@ -1,0 +1,78 @@
+# Build script for Travis CI
+#
+
+# use xenial distribution
+dist: xenial
+
+# no need to check for oracle's java
+language: java
+jdk: openjdk8
+
+# speed up builds by caching maven local repository
+cache:
+  directories:
+  - "$HOME/.m2/repository"
+
+# as agreed in our SOP
+branches:
+  only:
+  - master
+  - development
+
+# added to make logs look cleaner, crisper, certified fresh
+before_install: unset _JAVA_OPTIONS 
+
+# speed up builds by telling Travis that we don't need any special "installation"
+install: true
+
+# check if we need to add a license file for Vaadin charts
+before_script: if [ "$VAADIN_CHARTS_LICENSE_CODE" != "" ]; then
+                  echo "$VAADIN_CHARTS_LICENSE_CODE" > ~/.vaadin.charts.developer.license;
+               fi;
+
+# as agreed in our SOP, build everything (don't deploy, just try to 'mvn install' locally, which covers all phases)
+script: mvn --quiet --activate-profiles !development-build,!release-build --settings .travis.settings.xml clean cobertura:cobertura install
+# upload code coverage report, generate maven site (javadocs, documentation, static code analysis, etc.)
+after_success: 
+- bash <(curl -s https://codecov.io/bash)
+- mvn --quiet --activate-profiles !development-build,!release-build --settings .travis.settings.xml site
+
+# upload to maven
+deploy:
+  # as agreed in our SOP, builds on development branch will deploy to our maven repository after validating
+  # the artifact has a proper SNAPSHOT version
+  # artifact will be installed in our testing instance if it is a .war file
+- skip_cleanup: true
+  provider: script
+  script: mvn --quiet --activate-profiles development-build,!release-build --settings .travis.settings.xml deploy
+  on:
+    branch: development
+    condition: '"$TRAVIS_EVENT_TYPE" = "push"'
+  # as agreed in our SOP, tagging a commit on the master branch will upload to our maven repository
+  # after validating the artifact has a proper release version
+  # artifact will be installed in our testing instance if it is a .war file
+- skip_cleanup: true
+  provider: script
+  script: mvn --quiet --activate-profiles !development-build,release-build --settings .travis.settings.xml deploy
+  on:
+    branch: master
+    condition: '"$TRAVIS_EVENT_TYPE" = "push"'
+
+env:
+  global:
+    - secure: "hoULtbs9e0XCxRpyD+l3f43HE8aNkh/U65dTitU3TwevLYDO8hEqWqwp67TXAbehc4Gukb7A6tZ0oWm6D1FtuL/ctmhURWHpXmhyxS2ffAKEgpv/D4ITO0i1mpUyiKCU3kL7UL6tBr+5okFncxS90jXd4iNs0H7vnaTiLb+ijgpDEgIOWQZARVgg7iQLAUhVtGbdPUsMnXsDEkHKGhuJaqA0X7tYGabG0DRPBq9kHIwZpVwV0cCOXsTKhR6KoEPH4vj4nzzcztekkVypat0A24UR4fjZob/V8jbgG/qRd1cChnv0sGCZPivdHvKX/khL7Vg/YE0O7i0Vt/agCnfvaNBgv2r16/9lh2DxQrgTQPAABMVFlSFEdfZtF8AtXMMUCuOMsEH7s+ORYvWQodI9HQeZLwNO5rxgh4roh+UnoyHPPSyHcse6UOYzsDYXZiOp6n6C1O1CveZtIYIOai80dDCn+yhVs2WTn5FDb0sUxgjt8x4+napjtbiFG7VP/YiQ+c4hUzykh+CMigVSxn76P8oF7u6ppxsNcyRCTfxHhX8ub2RoyJARKUMxfDdwjEFGGIGhtuhY8LUZioymsADKmihRxix39uwJ+z9Z4/bbl+fkBakgBmu3OLkA9QC73OOOkLtZRcB3s3vjr5LqBbk1VsNFZCQJIgObO7SOFmENxO8="
+    - secure: "i91hDjPOOO3YpvBPPGTc3fb/eeocWmmndUNQz2XUekCcgbKZ9s3bPj7A+GT0a+gFYuLR7J0r8JIeiN8IgJgF7DbPvOr2qL5W65qpXMgq4gwn3CYvPDjV/UhdNJlPt6dqcGHVhv7cB8bNYqjsBde6q73kA4CLV5WDRReg/zFcfsTVDs8ErAqt+yu+wfwogeWmTOBXzmrsTWdYiCozJ6W5G/SXv8bZs8Uz9wbv26/Rp8VXiVHMPYXWD9rzj7TE1aV1QfdqfWa+WcJ9yBLlb1zFDPO96uM2v7N449aDGrIGTNSqBzAjRsmPzQcVwJDGEb7CMRWNfdV/VrPgWB8fkFaPL2KHMFV8d8kJsOcHestWLbr/Za7Uuo4rQ8qM695/uJLGIBpur4rAxErkgD5z7GCcApkxJ+c9LZnpbLt1k0oRTmS5b4Yasy0Rhhk+FGaQ9mrbWd6bjeP9LWqUSlhyY0LBFqwiMeKyTUFsFqTXzQUsYGiL9QOmWuWCy1L/nAQ4ZP3oiueBQJYyCYTwZ5cNc8nJnMMQQcwfHiYLZzUl7GGrch0nP49fRj05EXz0LDJgGqoTxMY+kn4AbAaPKF8zPYcWfIVzsln9uJU/q/PY5prZZKkrhKLpFiafDmmVLwc9DWTghzRIvVMXfg2TN+8RI/5sVLa+9sGt4ZyhutggprHIyg0="
+
+
+# change according to your needs, but we recommend to deactivate email notifications
+# for now, we configured Travis to send a notification to the #travis-ci channel 
+notifications:
+  email:
+    on_success: never
+    on_failure: never
+  slack: 
+    on_success: never
+    on_failure: always
+    # edit the following section if you want to get slack notifications
+    rooms:
+      - secure: "***"
