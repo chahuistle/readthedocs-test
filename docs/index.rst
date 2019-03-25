@@ -12,6 +12,8 @@ Welcome to Sample Project's documentation!
 
    packages
 
+Look, ma, no hands!
+===================
 
 
 Indices and tables
